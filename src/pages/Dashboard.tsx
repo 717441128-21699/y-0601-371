@@ -522,7 +522,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className={cn('text-xs font-medium px-2 py-0.5 rounded', config.bg, config.color)}>
                             {alarm.level === 'critical' ? '严重' : alarm.level === 'warning' ? '警告' : '信息'}
                           </span>
@@ -537,6 +537,22 @@ export default function Dashboard() {
                           )}
                         </div>
                         <p className="text-sm text-primary-50/60 truncate">{alarm.message}</p>
+                        {alarm.level === 'critical' && alarm.actions && alarm.actions.filter(a => a.type !== 'manual_confirm').length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {alarm.actions.filter(a => a.type === 'power_reduction').length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-warning/15 border border-warning/40 text-warning">
+                                <ZapOff className="w-3 h-3" />
+                                系统已自动降功率至80%
+                              </span>
+                            )}
+                            {alarm.actions.filter(a => a.type === 'backup_switch').length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-energy/15 border border-energy/40 text-energy">
+                                <Shield className="w-3 h-3" />
+                                系统已切换备用支路
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {alarm.actions && alarm.actions.length > 0 && (
                           <div className="mt-2 space-y-1.5">
                             {alarm.actions.map((action, idx) => (

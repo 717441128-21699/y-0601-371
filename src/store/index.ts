@@ -416,6 +416,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
           : a
       ),
+      _initialized: { ...state._initialized, alarms: true },
     }));
   },
 
@@ -453,6 +454,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? { ...s, status: 'approved' as const, approver, approvedAt: now, comment: remark || s.comment }
           : s
       ),
+      _initialized: { ...state._initialized, schedules: true },
     }));
   },
 
@@ -465,6 +467,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? { ...s, status: 'rejected' as const, approver, approvedAt: now, comment: remark || s.comment }
           : s
       ),
+      _initialized: { ...state._initialized, schedules: true },
     }));
   },
 
@@ -480,15 +483,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   createWorkOrder: async (order) => {
     await delay();
     const now = new Date().toISOString();
-    const nextId = `WO-${new Date().getFullYear()}-${String(get().workOrderList.length + 1).padStart(4, '0')}`;
+    const state = get();
+    const nextId = `WO-${new Date().getFullYear()}-${String(state.workOrderList.length + 1).padStart(4, '0')}`;
     const newOrder: WorkOrder = {
       ...order,
       id: nextId,
       createdAt: now,
     };
-    set((state) => ({
+    set({
       workOrderList: [newOrder, ...state.workOrderList],
-    }));
+      _initialized: { ...state._initialized, workorders: true },
+    });
   },
 
   assignWorkOrder: async (id: string, assignee: string, team?: string) => {
@@ -499,6 +504,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? { ...wo, status: 'assigned' as const, assignee, team }
           : wo
       ),
+      _initialized: { ...state._initialized, workorders: true },
     }));
   },
 
@@ -550,6 +556,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
       spareParts: updatedParts,
       stockRecords: [...newRecords, ...state.stockRecords],
+      _initialized: {
+        ...state._initialized,
+        workorders: true,
+        inventory: true,
+        stockrecords: true,
+      },
     });
 
     return true;
@@ -597,6 +609,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       spareParts: updatedParts,
       stockRecords: [newRecord, ...state.stockRecords],
+      _initialized: {
+        ...state._initialized,
+        inventory: true,
+        stockrecords: true,
+      },
     });
   },
 
@@ -626,6 +643,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       spareParts: updatedParts,
       stockRecords: [newRecord, ...state.stockRecords],
+      _initialized: {
+        ...state._initialized,
+        inventory: true,
+        stockrecords: true,
+      },
     });
 
     return true;
