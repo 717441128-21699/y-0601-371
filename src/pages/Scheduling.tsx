@@ -55,16 +55,11 @@ export default function Scheduling() {
     fetchSchedules,
     approveSchedule,
     rejectSchedule,
+    dispatchParams,
+    updateDispatchParams,
   } = useAppStore();
 
-  const [params, setParams] = useState<DispatchParams>({
-    cleaningThreshold: 10,
-    inverterEfficiencyDrop: 5,
-    minSoc: 20,
-    maxSoc: 95,
-  });
-
-  const [tempParams, setTempParams] = useState<DispatchParams>(params);
+  const [tempParams, setTempParams] = useState<DispatchParams>(dispatchParams);
   const [showDrawer, setShowDrawer] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<SchedulePlan | null>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
@@ -77,8 +72,17 @@ export default function Scheduling() {
     fetchSchedules();
   }, [fetchSchedules]);
 
+  useEffect(() => {
+    if (selectedSchedule) {
+      const updated = scheduleList.find((s) => s.id === selectedSchedule.id);
+      if (updated) {
+        setSelectedSchedule(updated);
+      }
+    }
+  }, [scheduleList]);
+
   const handleSaveParams = () => {
-    setParams({ ...tempParams });
+    updateDispatchParams(tempParams);
   };
 
   const handleViewDetail = (schedule: SchedulePlan) => {
@@ -102,8 +106,6 @@ export default function Scheduling() {
     try {
       await approveSchedule(selectedSchedule.id, user.name, approvalRemark);
       setShowApproveModal(false);
-      setShowDrawer(false);
-      setSelectedSchedule(null);
     } finally {
       setActionLoading(false);
     }
@@ -115,8 +117,6 @@ export default function Scheduling() {
     try {
       await rejectSchedule(selectedSchedule.id, user.name, rejectRemark);
       setShowRejectModal(false);
-      setShowDrawer(false);
-      setSelectedSchedule(null);
     } finally {
       setActionLoading(false);
     }
@@ -246,7 +246,7 @@ export default function Scheduling() {
                 />
                 <span className="text-lg text-primary-50/50 pb-2">%</span>
               </div>
-              <p className="text-xs text-primary-50/40 mt-2">当前生效: {params.cleaningThreshold}%</p>
+              <p className="text-xs text-primary-50/40 mt-2">当前生效: {dispatchParams.cleaningThreshold}%</p>
             </div>
 
             <div className="p-4 rounded-lg bg-primary-50/10 border border-primary-50/10">
@@ -267,7 +267,7 @@ export default function Scheduling() {
                 />
                 <span className="text-lg text-primary-50/50 pb-2">%</span>
               </div>
-              <p className="text-xs text-primary-50/40 mt-2">当前生效: {params.inverterEfficiencyDrop}%</p>
+              <p className="text-xs text-primary-50/40 mt-2">当前生效: {dispatchParams.inverterEfficiencyDrop}%</p>
             </div>
 
             <div className="p-4 rounded-lg bg-primary-50/10 border border-primary-50/10">
@@ -288,7 +288,7 @@ export default function Scheduling() {
                 />
                 <span className="text-lg text-primary-50/50 pb-2">%</span>
               </div>
-              <p className="text-xs text-primary-50/40 mt-2">当前生效: {params.minSoc}%</p>
+              <p className="text-xs text-primary-50/40 mt-2">当前生效: {dispatchParams.minSoc}%</p>
             </div>
 
             <div className="p-4 rounded-lg bg-primary-50/10 border border-primary-50/10">
@@ -309,7 +309,7 @@ export default function Scheduling() {
                 />
                 <span className="text-lg text-primary-50/50 pb-2">%</span>
               </div>
-              <p className="text-xs text-primary-50/40 mt-2">当前生效: {params.maxSoc}%</p>
+              <p className="text-xs text-primary-50/40 mt-2">当前生效: {dispatchParams.maxSoc}%</p>
             </div>
           </div>
 
@@ -382,7 +382,7 @@ export default function Scheduling() {
                 </div>
               </div>
 
-              {selectedSchedule.approver && (
+              {(selectedSchedule.approver || selectedSchedule.approvedAt || selectedSchedule.comment) && (
                 <div className="p-4 rounded-lg bg-primary-50/10 border border-primary-50/10">
                   <div className="grid grid-cols-2 gap-4">
                     <div>

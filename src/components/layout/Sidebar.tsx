@@ -14,6 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store";
 
 const navItems = [
   { path: "/dashboard", label: "监控大屏", icon: LayoutDashboard },
@@ -28,9 +29,11 @@ const navItems = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const logout = useAppStore((s) => s.logout);
 
   const handleLogout = () => {
-    navigate("/");
+    logout();
+    navigate("/login", { replace: true });
   };
 
   return (

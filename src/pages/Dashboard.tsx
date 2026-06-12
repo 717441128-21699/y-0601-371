@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Zap,
   Sun,
@@ -12,6 +12,9 @@ import {
   Activity,
   Battery,
   LayoutDashboard,
+  CheckCircle2,
+  Shield,
+  ZapOff,
 } from 'lucide-react';
 import {
   ComposedChart,
@@ -98,7 +101,10 @@ export default function Dashboard() {
     fetchDevices,
     fetchAlarms,
     fetchStatistics,
+    resolveAlarm,
   } = useAppStore();
+
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWeather();
@@ -485,6 +491,9 @@ export default function Dashboard() {
             <span className="ml-2 px-2 py-0.5 rounded-full bg-alarm/20 text-alarm text-xs">
               {alarmList.filter((a) => !a.resolved).length} 未处理
             </span>
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-success/15 text-success text-xs">
+              {alarmList.filter((a) => a.resolved).length} 已处理
+            </span>
           </h3>
           <div className="relative">
             <div className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-alarm via-warning to-primary-50/30" />
@@ -521,16 +530,60 @@ export default function Dashboard() {
                             {alarm.deviceName}
                           </span>
                           {alarm.resolved && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-success/20 text-success">
+                            <span className="text-xs px-2 py-0.5 rounded bg-success/20 text-success flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
                               已处理
                             </span>
                           )}
                         </div>
                         <p className="text-sm text-primary-50/60 truncate">{alarm.message}</p>
+                        {alarm.actions && alarm.actions.length > 0 && (
+                          <div className="mt-2 space-y-1.5">
+                            {alarm.actions.map((action, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start gap-2 p-2 rounded bg-primary-50/5 border border-primary-50/10"
+                              >
+                                {action.type === 'power_reduction' ? (
+                                  <ZapOff className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+                                ) : (
+                                  <Shield className="w-3.5 h-3.5 text-energy shrink-0 mt-0.5" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-xs text-primary-50/70">{action.description}</p>
+                                  <p className="text-[10px] text-primary-50/40 font-mono mt-0.5">
+                                    {formatTime(action.timestamp)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs text-primary-50/40 font-mono whitespace-nowrap shrink-0">
-                        {formatTime(alarm.timestamp)}
-                      </span>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span className="text-xs text-primary-50/40 font-mono whitespace-nowrap">
+                          {formatTime(alarm.timestamp)}
+                        </span>
+                        {!alarm.resolved && (
+                          <button
+                            onClick={async () => {
+                              setResolvingId(alarm.id);
+                              await resolveAlarm(alarm.id);
+                              setResolvingId(null);
+                            }}
+                            disabled={resolvingId === alarm.id}
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                              resolvingId === alarm.id
+                                ? 'bg-primary-50/10 text-primary-50/40 cursor-not-allowed'
+                                : 'bg-energy/15 border border-energy/30 text-energy hover:bg-energy/25 hover:shadow-[0_0_8px_rgba(0,200,83,0.2)]'
+                            )}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            {resolvingId === alarm.id ? '处理中...' : '处理'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

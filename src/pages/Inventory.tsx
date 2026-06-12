@@ -199,11 +199,14 @@ function WarningItem({ part }: WarningItemProps) {
 }
 
 export default function Inventory() {
-  const { spareParts, stockRecords, fetchInventory, fetchStockRecords } = useAppStore();
+  const { spareParts, stockRecords, stockIn, stockOut, user, fetchInventory, fetchStockRecords } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('stock');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
+
+  const [stockInModal, setStockInModal] = useState<{ part: SparePart; quantity: string } | null>(null);
+  const [stockOutModal, setStockOutModal] = useState<{ part: SparePart; quantity: string; error: string } | null>(null);
 
   useEffect(() => {
     fetchInventory();
@@ -237,11 +240,33 @@ export default function Inventory() {
   }, [stockRecords, searchKeyword]);
 
   const handleStockIn = (part: SparePart) => {
-    console.log('入库:', part.name);
+    setStockInModal({ part, quantity: '' });
   };
 
   const handleStockOut = (part: SparePart) => {
-    console.log('出库:', part.name);
+    setStockOutModal({ part, quantity: '', error: '' });
+  };
+
+  const confirmStockIn = async () => {
+    if (!stockInModal) return;
+    const qty = parseInt(stockInModal.quantity, 10);
+    if (!qty || qty <= 0) return;
+    await stockIn(stockInModal.part.id, qty, user?.name || '未知');
+    setStockInModal(null);
+  };
+
+  const confirmStockOut = async () => {
+    if (!stockOutModal) return;
+    const qty = parseInt(stockOutModal.quantity, 10);
+    if (!qty || qty <= 0) return;
+    if (qty > stockOutModal.part.stock) {
+      setStockOutModal((prev) => prev ? { ...prev, error: '库存不足，无法出库' } : prev);
+      return;
+    }
+    const success = await stockOut(stockOutModal.part.id, qty, user?.name || '未知');
+    if (success) {
+      setStockOutModal(null);
+    }
   };
 
   const recordColumns: Column<StockRecord>[] = [
@@ -482,6 +507,126 @@ export default function Inventory() {
           rowKey="id"
           emptyText="暂无出入库记录"
         />
+      )}
+
+      {stockInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setStockInModal(null)}>
+          <div className="w-full max-w-md rounded-xl border border-primary-50/30 bg-primary-950/95 backdrop-blur-md p-6 space-y-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-energy/15 border border-energy/40 flex items-center justify-center">
+                <ArrowDownCircle className="w-5 h-5 text-energy" />
+              </div>
+              <h2 className="text-lg font-semibold text-primary-50">备件入库</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary-50/5 border border-primary-50/20">
+                <span className="text-sm text-primary-50/60">备件名称</span>
+                <span className="text-sm font-medium text-primary-50/90">{stockInModal.part.name}</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary-50/5 border border-primary-50/20">
+                <span className="text-sm text-primary-50/60">当前库存</span>
+                <span className="text-sm font-mono font-semibold text-primary-50">{stockInModal.part.stock} {stockInModal.part.unit}</span>
+              </div>
+              <div>
+                <label className="block text-sm text-primary-50/60 mb-1.5">入库数量</label>
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  value={stockInModal.quantity}
+                  onChange={(e) => setStockInModal((prev) => prev ? { ...prev, quantity: e.target.value } : prev)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-primary-50/10 border border-primary-50/30
+                    text-sm text-primary-50 placeholder:text-primary-50/30
+                    focus:outline-none focus:border-energy/50 transition-colors"
+                  placeholder="请输入入库数量"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setStockInModal(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-50/10 border border-primary-50/20
+                  text-primary-50/70 hover:bg-primary-50/15 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmStockIn}
+                disabled={!stockInModal.quantity || parseInt(stockInModal.quantity, 10) <= 0}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-energy/15 border border-energy/40
+                  text-energy hover:bg-energy/25 transition-colors
+                  disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                确认入库
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stockOutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setStockOutModal(null)}>
+          <div className="w-full max-w-md rounded-xl border border-primary-50/30 bg-primary-950/95 backdrop-blur-md p-6 space-y-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-solar/15 border border-solar/40 flex items-center justify-center">
+                <ArrowUpCircle className="w-5 h-5 text-solar" />
+              </div>
+              <h2 className="text-lg font-semibold text-primary-50">备件出库</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary-50/5 border border-primary-50/20">
+                <span className="text-sm text-primary-50/60">备件名称</span>
+                <span className="text-sm font-medium text-primary-50/90">{stockOutModal.part.name}</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-primary-50/5 border border-primary-50/20">
+                <span className="text-sm text-primary-50/60">当前库存</span>
+                <span className="text-sm font-mono font-semibold text-primary-50">{stockOutModal.part.stock} {stockOutModal.part.unit}</span>
+              </div>
+              <div>
+                <label className="block text-sm text-primary-50/60 mb-1.5">出库数量</label>
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  value={stockOutModal.quantity}
+                  onChange={(e) => setStockOutModal((prev) => prev ? { ...prev, quantity: e.target.value, error: '' } : prev)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-primary-50/10 border border-primary-50/30
+                    text-sm text-primary-50 placeholder:text-primary-50/30
+                    focus:outline-none focus:border-solar/50 transition-colors"
+                  placeholder="请输入出库数量"
+                />
+              </div>
+              {stockOutModal.error && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-alarm/10 border border-alarm/30">
+                  <AlertTriangle className="w-4 h-4 text-alarm shrink-0" />
+                  <span className="text-sm text-alarm">{stockOutModal.error}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setStockOutModal(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-50/10 border border-primary-50/20
+                  text-primary-50/70 hover:bg-primary-50/15 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmStockOut}
+                disabled={!stockOutModal.quantity || parseInt(stockOutModal.quantity, 10) <= 0}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-solar/15 border border-solar/40
+                  text-solar hover:bg-solar/25 transition-colors
+                  disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                确认出库
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

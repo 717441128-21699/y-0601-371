@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Wrench,
   Sparkles,
@@ -12,11 +12,13 @@ import {
   Send,
   Filter,
   FileText,
+  Package,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { cn } from '@/lib/utils';
-import type { WorkOrder } from '@/../shared/types';
+import type { WorkOrder, PartUsage, SparePart } from '@/../shared/types';
 
 type WorkOrderType = 'maintenance' | 'cleaning' | 'repair';
 type WorkOrderStatus = 'pending' | 'assigned' | 'processing' | 'completed';
@@ -147,6 +149,12 @@ function WorkOrderCard({ order, onClick }: WorkOrderCardProps) {
             <span>{formatDateTime(order.createdAt)}</span>
           </div>
         </div>
+        {order.status === 'completed' && order.partsUsed && order.partsUsed.length > 0 && (
+          <div className="flex items-center gap-1.5 pt-2 border-t border-primary-50/20 text-xs text-energy/70">
+            <Package className="w-3 h-3" />
+            <span>已使用备件: {order.partsUsed.length} 项</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -270,10 +278,62 @@ interface CompleteModalProps {
   open: boolean;
   onClose: () => void;
   order: WorkOrder | null;
-  onConfirm: () => void;
+  onConfirm: (partsUsed: PartUsage[]) => void;
+  spareParts: SparePart[];
 }
 
-function CompleteModal({ open, onClose, order, onConfirm }: CompleteModalProps) {
+function CompleteModal({ open, onClose, order, onConfirm, spareParts }: CompleteModalProps) {
+  const [selectedPartId, setSelectedPartId] = useState('');
+  const [partQuantity, setPartQuantity] = useState(1);
+  const [partsUsed, setPartsUsed] = useState<PartUsage[]>([]);
+  const [quantityError, setQuantityError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setSelectedPartId('');
+      setPartQuantity(1);
+      setPartsUsed([]);
+      setQuantityError('');
+    }
+  }, [open]);
+
+  const selectedPart = spareParts.find((p) => p.id === selectedPartId);
+
+  const alreadyAddedStock = useMemo(() => {
+    return partsUsed
+      .filter((pu) => pu.partId === selectedPartId)
+      .reduce((sum, pu) => sum + pu.quantity, 0);
+  }, [partsUsed, selectedPartId]);
+
+  const handleAddPart = useCallback(() => {
+    if (!selectedPart) return;
+    const qty = Number(partQuantity);
+    if (!qty || qty <= 0) return;
+    if (qty > selectedPart.stock - alreadyAddedStock) {
+      setQuantityError(`数量超出可用库存（剩余 ${selectedPart.stock - alreadyAddedStock} ${selectedPart.unit}）`);
+      return;
+    }
+    setQuantityError('');
+    const existing = partsUsed.find((pu) => pu.partId === selectedPart.id);
+    if (existing) {
+      setPartsUsed(partsUsed.map((pu) =>
+        pu.partId === selectedPart.id ? { ...pu, quantity: pu.quantity + qty } : pu
+      ));
+    } else {
+      setPartsUsed([...partsUsed, { partId: selectedPart.id, partName: selectedPart.name, quantity: qty }]);
+    }
+    setSelectedPartId('');
+    setPartQuantity(1);
+  }, [selectedPart, partQuantity, partsUsed, alreadyAddedStock]);
+
+  const handleRemovePart = useCallback((partId: string) => {
+    setPartsUsed(partsUsed.filter((pu) => pu.partId !== partId));
+  }, [partsUsed]);
+
+  const handleConfirm = useCallback(() => {
+    onConfirm(partsUsed);
+  }, [onConfirm, partsUsed]);
+
   return (
     <Modal open={open} onClose={onClose} title={`完成工单 - ${order?.id || ''}`}>
       <div className="space-y-4">
@@ -288,6 +348,82 @@ function CompleteModal({ open, onClose, order, onConfirm }: CompleteModalProps) 
             </div>
           </div>
         </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-primary-50/80">
+            <Package className="w-4 h-4 text-solar" />
+            <span className="font-medium">备件领用</span>
+            <span className="text-xs text-primary-50/50">（可选）</span>
+          </div>
+
+          <div className="flex gap-2">
+            <select
+              value={selectedPartId}
+              onChange={(e) => { setSelectedPartId(e.target.value); setQuantityError(''); }}
+              className="flex-1 px-3 py-2 rounded-lg bg-primary-50/10 border border-primary-50/30 text-sm text-primary-50 focus:outline-none focus:border-solar/50 transition-colors"
+            >
+              <option value="">选择备件</option>
+              {spareParts.map((sp) => {
+                const outOfStock = sp.stock <= 0;
+                return (
+                  <option key={sp.id} value={sp.id} disabled={outOfStock}>
+                    {sp.name}（库存: {sp.stock}{sp.unit}）{outOfStock ? '(库存不足)' : ''}
+                  </option>
+                );
+              })}
+            </select>
+            <input
+              type="number"
+              min={1}
+              value={partQuantity}
+              onChange={(e) => { setPartQuantity(Number(e.target.value)); setQuantityError(''); }}
+              className="w-20 px-3 py-2 rounded-lg bg-primary-50/10 border border-primary-50/30 text-sm text-primary-50 focus:outline-none focus:border-solar/50 transition-colors text-center"
+            />
+            <button
+              onClick={handleAddPart}
+              disabled={!selectedPartId}
+              className={cn(
+                'px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                selectedPartId
+                  ? 'bg-solar/20 text-solar border border-solar/40 hover:bg-solar/30'
+                  : 'bg-primary-50/10 text-primary-50/30 border border-primary-50/20 cursor-not-allowed'
+              )}
+            >
+              添加
+            </button>
+          </div>
+
+          {quantityError && (
+            <p className="text-xs text-alarm">{quantityError}</p>
+          )}
+
+          {partsUsed.length > 0 && (
+            <div className="space-y-2">
+              {partsUsed.map((pu) => {
+                const part = spareParts.find((sp) => sp.id === pu.partId);
+                return (
+                  <div
+                    key={pu.partId}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary-50/10 border border-primary-50/20"
+                  >
+                    <div className="flex items-center gap-2 text-sm text-primary-50/80">
+                      <Package className="w-3.5 h-3.5 text-primary-50/50" />
+                      <span>{pu.partName}</span>
+                      <span className="text-xs text-primary-50/50">× {pu.quantity}{part?.unit || ''}</span>
+                    </div>
+                    <button
+                      onClick={() => handleRemovePart(pu.partId)}
+                      className="p-1 rounded text-primary-50/40 hover:text-alarm hover:bg-alarm/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-3 pt-2">
           <button
             onClick={onClose}
@@ -296,7 +432,7 @@ function CompleteModal({ open, onClose, order, onConfirm }: CompleteModalProps) 
             取消
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-gradient-energy text-primary-900 hover:shadow-glow-energy transition-all flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -436,6 +572,8 @@ export default function WorkOrders() {
     createWorkOrder,
     assignWorkOrder,
     completeWorkOrder,
+    spareParts,
+    fetchInventory,
   } = useAppStore();
 
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -446,7 +584,8 @@ export default function WorkOrders() {
 
   useEffect(() => {
     fetchWorkOrders();
-  }, [fetchWorkOrders]);
+    fetchInventory();
+  }, [fetchWorkOrders, fetchInventory]);
 
   const filteredOrders = useMemo(() => {
     if (filterType === 'all') return workOrderList;
@@ -482,9 +621,9 @@ export default function WorkOrders() {
     setSelectedOrder(null);
   };
 
-  const handleComplete = async () => {
+  const handleComplete = async (partsUsed: PartUsage[]) => {
     if (!selectedOrder) return;
-    await completeWorkOrder(selectedOrder.id);
+    await completeWorkOrder(selectedOrder.id, partsUsed);
     setCompleteModalOpen(false);
     setSelectedOrder(null);
   };
@@ -613,6 +752,7 @@ export default function WorkOrders() {
         onClose={() => { setCompleteModalOpen(false); setSelectedOrder(null); }}
         order={selectedOrder}
         onConfirm={handleComplete}
+        spareParts={spareParts}
       />
 
       <CreateModal
