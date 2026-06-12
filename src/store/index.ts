@@ -4,6 +4,7 @@ import type {
   WeatherData,
   GenerationData,
   Alarm,
+  AlarmAction,
   SchedulePlan,
   WorkOrder,
   SparePart,
@@ -75,12 +76,6 @@ const computeRealtimeWeather = (): WeatherData => {
   };
 };
 
-interface AlarmAction {
-  type: 'power_reduction' | 'backup_switch' | 'manual_confirm';
-  description: string;
-  timestamp: string;
-}
-
 interface AppState {
   _initialized: {
     devices: boolean;
@@ -100,7 +95,7 @@ interface AppState {
   inverters: DeviceState['inverters'];
   panels: DeviceState['panels'];
   batteries: DeviceState['batteries'];
-  alarmList: (Alarm & { actions?: AlarmAction[] })[];
+  alarmList: Alarm[];
   scheduleList: SchedulePlan[];
   workOrderList: WorkOrder[];
   spareParts: SparePart[];
@@ -118,7 +113,7 @@ interface AppState {
   fetchDevices: () => Promise<void>;
 
   fetchAlarms: () => Promise<void>;
-  resolveAlarm: (id: string) => Promise<void>;
+  resolveAlarm: (id: string, options?: { note?: string; createWorkOrder?: boolean; handler?: string }) => Promise<void>;
 
   fetchSchedules: () => Promise<void>;
   approveSchedule: (id: string, approver: string, remark?: string) => Promise<void>;
@@ -138,30 +133,95 @@ interface AppState {
   fetchStatistics: () => Promise<void>;
 }
 
-const initialAlarms: (Alarm & { actions?: AlarmAction[] })[] = mockAlarms.map((a) => {
+const buildAlarmActions = (a: typeof mockAlarms[number]): AlarmAction[] => {
+  if (a.level !== 'critical' || a.resolved) return [];
   const actions: AlarmAction[] = [];
-  if (a.level === 'critical' && !a.resolved) {
-    if (a.sourceType === '逆变器' && (a.description.includes('温度') || a.description.includes('过载'))) {
+  const t = a.timestamp;
+
+  if (a.sourceType === '逆变器') {
+    if (a.title.includes('故障') || a.title.includes('停机')) {
       actions.push({
-        type: 'power_reduction',
-        description: '系统已自动降低该逆变器输出功率至80%以控制温度',
-        timestamp: a.timestamp,
+        type: 'shutdown',
+        description: '系统检测到IGBT过流，已自动触发停机保护，断开直流与交流侧连接',
+        timestamp: t,
       });
-    }
-    if (a.sourceType === '组串' && a.description.includes('电流异常')) {
       actions.push({
         type: 'backup_switch',
-        description: '系统已自动切换至备用支路，维持发电连续性',
-        timestamp: a.timestamp,
+        description: '已自动切换该方阵负载至备用逆变器INV-S02，发电影响最小化',
+        timestamp: t,
+      });
+    } else if (a.title.includes('温度') || a.description.includes('温度')) {
+      actions.push({
+        type: 'power_reduction',
+        description: '散热器温度超过阈值，系统已自动降功率至80%运行，启用辅助散热',
+        timestamp: t,
+      });
+    } else if (a.title.includes('过载') || a.description.includes('过载')) {
+      actions.push({
+        type: 'power_reduction',
+        description: '检测到输出过载，已将输出功率限制在额定值100%以内',
+        timestamp: t,
+      });
+    } else {
+      actions.push({
+        type: 'power_reduction',
+        description: '逆变器异常，系统已自动降功率至60%并持续监测',
+        timestamp: t,
       });
     }
+  } else if (a.sourceType === '组串' || a.sourceType === '方阵') {
+    if (a.title.includes('电流') || a.description.includes('电流异常')) {
+      actions.push({
+        type: 'backup_switch',
+        description: '组串电流异常，已自动切换至备用支路，维持发电连续性',
+        timestamp: t,
+      });
+    } else if (a.title.includes('输出') || a.title.includes('偏低') || a.title.includes('异常')) {
+      actions.push({
+        type: 'shutdown',
+        description: '疑似组件故障或大面积遮蔽，已隔离异常组串防止影响相邻方阵',
+        timestamp: t,
+      });
+      actions.push({
+        type: 'power_reduction',
+        description: '已将相邻正常组串输出功率微调至安全区间，待排查后恢复',
+        timestamp: t,
+      });
+    } else {
+      actions.push({
+        type: 'backup_switch',
+        description: '组串异常，已自动切换至备用支路',
+        timestamp: t,
+      });
+    }
+  } else if (a.sourceType === '储能') {
+    actions.push({
+      type: 'power_reduction',
+      description: '储能系统SOC异常，已暂停充放电并启动自检测流程',
+      timestamp: t,
+    });
+  } else {
+    actions.push({
+      type: 'power_reduction',
+      description: '系统异常，已自动降低整体输出功率，等待进一步处置',
+      timestamp: t,
+    });
   }
+  return actions;
+};
+
+const initialAlarms: Alarm[] = mockAlarms.map((a) => {
+  const actions = buildAlarmActions(a);
+  const deviceType: 'inverter' | 'panel' | 'battery' =
+    a.sourceType === '逆变器' ? 'inverter' :
+    a.sourceType === '组串' || a.sourceType === '方阵' ? 'panel' :
+    a.sourceType === '储能' ? 'battery' : 'inverter';
   return {
     id: a.id,
     timestamp: a.timestamp,
     level: a.level,
     deviceId: a.source,
-    deviceType: (a.sourceType === '逆变器' ? 'inverter' : a.sourceType === '组串' ? 'panel' : 'battery') as 'inverter' | 'panel' | 'battery',
+    deviceType,
     deviceName: a.title,
     message: a.description,
     resolved: a.resolved,
@@ -396,28 +456,76 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ alarmList: [...initialAlarms], _initialized: { ...get()._initialized, alarms: true } });
   },
 
-  resolveAlarm: async (id: string) => {
+  resolveAlarm: async (id: string, options = {}) => {
+    const { note, createWorkOrder, handler } = options;
     await delay();
     const now = new Date().toISOString();
-    set((state) => ({
+    const state = get();
+    const alarm = state.alarmList.find((a) => a.id === id);
+    if (!alarm) return;
+
+    const manualNote = note && note.trim() ? note.trim() : null;
+
+    let newWorkOrders: WorkOrder[] = state.workOrderList;
+    let relatedWorkOrderId: string | undefined;
+    let relatedWorkOrderTitle: string | undefined;
+
+    if (createWorkOrder) {
+      const nextNum = String(newWorkOrders.length + 1).padStart(4, '0');
+      const woId = `WO-${new Date().getFullYear()}-${nextNum}`;
+      const woType: 'repair' | 'maintenance' = alarm.deviceType === 'panel' ? 'repair' : 'repair';
+      relatedWorkOrderId = woId;
+      relatedWorkOrderTitle = `维修工单：${alarm.deviceName}`;
+      const newWo: WorkOrder = {
+        id: woId,
+        type: woType,
+        status: 'pending',
+        deviceId: alarm.deviceId,
+        deviceType: alarm.deviceType,
+        deviceName: alarm.deviceName,
+        description: `报警ID ${alarm.id}：${alarm.message}${manualNote ? `\n处理说明：${manualNote}` : ''}`,
+        assignee: handler,
+        partsUsed: [],
+        createdAt: now,
+        relatedAlarmId: alarm.id,
+        relatedAlarmTitle: alarm.deviceName,
+        handlerNote: manualNote || undefined,
+      };
+      newWorkOrders = [newWo, ...newWorkOrders];
+    }
+
+    const manualDesc = manualNote
+      ? `运维人员${handler ? `（${handler}）` : ''}已确认处置结果：${manualNote}，报警已关闭`
+      : `运维人员${handler ? `（${handler}）` : ''}已确认处置结果，报警已关闭`;
+
+    set({
       alarmList: state.alarmList.map((a) =>
         a.id === id
           ? {
               ...a,
               resolved: true,
+              handler,
+              handlerNote: manualNote || undefined,
+              relatedWorkOrderId,
+              relatedWorkOrderTitle,
               actions: [
                 ...(a.actions || []),
                 {
                   type: 'manual_confirm' as const,
-                  description: '运维人员已确认处置结果，报警已关闭',
+                  description: manualDesc,
                   timestamp: now,
                 },
               ],
             }
           : a
       ),
-      _initialized: { ...state._initialized, alarms: true },
-    }));
+      workOrderList: newWorkOrders,
+      _initialized: {
+        ...state._initialized,
+        alarms: true,
+        workorders: true,
+      },
+    });
   },
 
   fetchSchedules: async () => {

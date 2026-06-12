@@ -66,6 +66,14 @@ export interface Battery {
   capacity: number;
 }
 
+export type AlarmActionType = 'power_reduction' | 'backup_switch' | 'shutdown' | 'manual_confirm';
+
+export interface AlarmAction {
+  type: AlarmActionType;
+  description: string;
+  timestamp: string;
+}
+
 export interface Alarm {
   id: string;
   timestamp: string;
@@ -75,6 +83,11 @@ export interface Alarm {
   deviceName: string;
   message: string;
   resolved: boolean;
+  actions?: AlarmAction[];
+  relatedWorkOrderId?: string;
+  relatedWorkOrderTitle?: string;
+  handlerNote?: string;
+  handler?: string;
 }
 
 export interface SchedulePlan {
@@ -126,6 +139,9 @@ export interface WorkOrder {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+  relatedAlarmId?: string;
+  relatedAlarmTitle?: string;
+  handlerNote?: string;
 }
 
 export interface PartUsage {

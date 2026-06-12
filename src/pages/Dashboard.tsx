@@ -15,6 +15,10 @@ import {
   CheckCircle2,
   Shield,
   ZapOff,
+  Wrench,
+  FileText,
+  User,
+  PowerOff,
 } from 'lucide-react';
 import {
   ComposedChart,
@@ -102,9 +106,11 @@ export default function Dashboard() {
     fetchAlarms,
     fetchStatistics,
     resolveAlarm,
+    user,
   } = useAppStore();
 
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveModal, setResolveModal] = useState<null | { alarmId: string; note: string; createWorkOrder: boolean }>(null);
 
   useEffect(() => {
     fetchWeather();
@@ -537,8 +543,29 @@ export default function Dashboard() {
                           )}
                         </div>
                         <p className="text-sm text-primary-50/60 truncate">{alarm.message}</p>
+                        {alarm.relatedWorkOrderId && (
+                          <div className="mt-1.5 flex items-center gap-1 text-xs text-primary-50">
+                            <FileText className="w-3.5 h-3.5" />
+                            <span className="text-blue-400">关联工单：{alarm.relatedWorkOrderId}</span>
+                          </div>
+                        )}
+                        {alarm.handler && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-primary-50/80">
+                            <User className="w-3.5 h-3.5" />
+                            <span>处理人：{alarm.handler}</span>
+                          </div>
+                        )}
+                        {alarm.handlerNote && (
+                          <p className="mt-1 text-xs text-primary-50/40">处理说明：{alarm.handlerNote}</p>
+                        )}
                         {alarm.level === 'critical' && alarm.actions && alarm.actions.filter(a => a.type !== 'manual_confirm').length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
+                            {alarm.actions.filter(a => a.type === 'shutdown').length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-alarm/15 border border-alarm/40 text-alarm">
+                                <PowerOff className="w-3 h-3" />
+                                系统已执行停机保护
+                              </span>
+                            )}
                             {alarm.actions.filter(a => a.type === 'power_reduction').length > 0 && (
                               <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-warning/15 border border-warning/40 text-warning">
                                 <ZapOff className="w-3 h-3" />
@@ -560,11 +587,16 @@ export default function Dashboard() {
                                 key={idx}
                                 className={cn(
                                   'flex items-start gap-2 p-2 rounded border',
-                                  action.type === 'manual_confirm'
+                                  action.type === 'shutdown'
+                                    ? 'bg-alarm/5 border-alarm/20'
+                                    : action.type === 'manual_confirm'
                                     ? 'bg-primary-50/5 border-primary-50/10'
                                     : 'bg-primary-50/5 border-primary-50/10'
                                 )}
                               >
+                                {action.type === 'shutdown' && (
+                                  <PowerOff className="w-3.5 h-3.5 text-alarm shrink-0 mt-0.5" />
+                                )}
                                 {action.type === 'power_reduction' && (
                                   <ZapOff className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
                                 )}
@@ -576,6 +608,9 @@ export default function Dashboard() {
                                 )}
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
+                                    {action.type === 'shutdown' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-alarm/20 text-alarm">停机保护</span>
+                                    )}
                                     {action.type === 'power_reduction' && (
                                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning">自动降功率</span>
                                     )}
@@ -588,7 +623,7 @@ export default function Dashboard() {
                                   </div>
                                   <p className={cn(
                                     'text-xs mt-1',
-                                    action.type === 'manual_confirm' ? 'text-primary-50/50' : 'text-primary-50/70'
+                                    action.type === 'shutdown' ? 'text-alarm/80' : action.type === 'manual_confirm' ? 'text-primary-50/50' : 'text-primary-50/70'
                                   )}>{action.description}</p>
                                   <p className="text-[10px] text-primary-50/40 font-mono mt-0.5">
                                     {formatTime(action.timestamp)}
@@ -606,9 +641,13 @@ export default function Dashboard() {
                         {!alarm.resolved && (
                           <button
                             onClick={async () => {
-                              setResolvingId(alarm.id);
-                              await resolveAlarm(alarm.id);
-                              setResolvingId(null);
+                              if (alarm.level === 'critical') {
+                                setResolveModal({ alarmId: alarm.id, note: '', createWorkOrder: true });
+                              } else {
+                                setResolvingId(alarm.id);
+                                await resolveAlarm(alarm.id);
+                                setResolvingId(null);
+                              }
                             }}
                             disabled={resolvingId === alarm.id}
                             className={cn(
@@ -631,6 +670,82 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {resolveModal && (() => {
+        const alarm = alarmList.find((a) => a.id === resolveModal.alarmId);
+        if (!alarm) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-md mx-4 rounded-xl backdrop-blur-md border border-primary-50/30 bg-primary-90/95 shadow-2xl">
+              <div className="px-6 py-4 border-b border-primary-50/20">
+                <h3 className="text-lg font-semibold text-primary-50 flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-energy" />
+                  处理告警
+                </h3>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                <div className="p-3 rounded-lg bg-primary-50/5 border border-primary-50/10">
+                  <div className="text-sm font-medium text-primary-50/90 mb-1">{alarm.deviceName}</div>
+                  <div className="text-sm text-primary-50/60">{alarm.message}</div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-primary-50/80 mb-1.5">处理说明</label>
+                  <textarea
+                    value={resolveModal.note}
+                    onChange={(e) =>
+                      setResolveModal({ ...resolveModal, note: e.target.value })
+                    }
+                    placeholder="请填写处理说明（可选）"
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-lg bg-primary-50/5 border border-primary-50/20 text-primary-50 text-sm placeholder:text-primary-50/30 focus:outline-none focus:border-primary-50/40 focus:ring-1 focus:ring-primary-50/20 resize-none"
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={resolveModal.createWorkOrder}
+                    onChange={(e) =>
+                      setResolveModal({ ...resolveModal, createWorkOrder: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded bg-primary-50/5 border-primary-50/30 text-energy focus:ring-energy/30"
+                  />
+                  <span className="text-sm text-primary-50/80">生成维修工单</span>
+                </label>
+              </div>
+              <div className="px-6 py-4 border-t border-primary-50/20 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setResolveModal(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-primary-50/70 hover:text-primary-50 hover:bg-primary-50/5 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={async () => {
+                    setResolvingId(resolveModal.alarmId);
+                    await resolveAlarm(resolveModal.alarmId, {
+                      note: resolveModal.note || undefined,
+                      createWorkOrder: resolveModal.createWorkOrder,
+                      handler: user?.name,
+                    });
+                    setResolvingId(null);
+                    setResolveModal(null);
+                  }}
+                  disabled={resolvingId === resolveModal.alarmId}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                    resolvingId === resolveModal.alarmId
+                      ? 'bg-primary-50/10 text-primary-50/40 cursor-not-allowed'
+                      : 'bg-energy/15 border border-energy/30 text-energy hover:bg-energy/25 hover:shadow-[0_0_8px_rgba(0,200,83,0.2)]'
+                  )}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {resolvingId === resolveModal.alarmId ? '处理中...' : '确认处理'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

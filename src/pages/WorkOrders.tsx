@@ -127,6 +127,23 @@ function WorkOrderCard({ order, onClick }: WorkOrderCardProps) {
           {truncateText(order.description, 60)}
         </p>
 
+        {order.relatedAlarmId && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-solar">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                关联告警：{order.relatedAlarmId}
+                {order.relatedAlarmTitle && ` - ${order.relatedAlarmTitle}`}
+              </span>
+            </div>
+            {order.handlerNote && (
+              <p className="text-xs text-primary-50/40 pl-5">
+                处理说明：{order.handlerNote}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-2 border-t border-primary-50/20">
           <div className="flex items-center gap-1.5 text-xs text-primary-50/50">
             {order.assignee ? (

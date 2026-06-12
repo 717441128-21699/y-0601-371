@@ -205,6 +205,10 @@ export default function Inventory() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
+  const [filterPartName, setFilterPartName] = useState('');
+  const [filterWorkOrder, setFilterWorkOrder] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
+
   const [stockInModal, setStockInModal] = useState<{ part: SparePart; quantity: string } | null>(null);
   const [stockOutModal, setStockOutModal] = useState<{ part: SparePart; quantity: string; error: string } | null>(null);
 
@@ -235,9 +239,17 @@ export default function Inventory() {
         !searchKeyword ||
         r.partName.toLowerCase().includes(searchKeyword.toLowerCase()) ||
         r.operator.toLowerCase().includes(searchKeyword.toLowerCase());
-      return matchKeyword;
+      const matchPartName =
+        !filterPartName ||
+        r.partName.toLowerCase().includes(filterPartName.toLowerCase());
+      const matchWorkOrder =
+        !filterWorkOrder ||
+        (r.workOrderId && r.workOrderId.includes(filterWorkOrder));
+      const matchType =
+        filterType === 'all' || r.type === filterType;
+      return matchKeyword && matchPartName && matchWorkOrder && matchType;
     });
-  }, [stockRecords, searchKeyword]);
+  }, [stockRecords, searchKeyword, filterPartName, filterWorkOrder, filterType]);
 
   const handleStockIn = (part: SparePart) => {
     setStockInModal({ part, quantity: '' });
@@ -333,12 +345,12 @@ export default function Inventory() {
       width: 140,
       render: (record) =>
         record.workOrderId ? (
-          <div className="flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-primary-50/40" />
-            <span className="text-xs font-mono text-primary-50/70 hover:text-solar cursor-pointer transition-colors">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary-50/10 border border-primary-50/30 cursor-pointer hover:bg-primary-50/15 hover:border-primary-50/50 transition-all">
+            <FileText className="w-3.5 h-3.5 text-primary-50/80" />
+            <span className="text-xs font-mono text-primary-50/90">
               {record.workOrderId}
             </span>
-            <ChevronRight className="w-3 h-3 text-primary-50/30" />
+            <ChevronRight className="w-3 h-3 text-primary-50/60" />
           </div>
         ) : (
           <span className="text-xs text-primary-50/30">-</span>
@@ -501,12 +513,39 @@ export default function Inventory() {
           )}
         </div>
       ) : (
-        <DataTable<StockRecord>
-          columns={recordColumns}
-          data={filteredRecords}
-          rowKey="id"
-          emptyText="暂无出入库记录"
-        />
+        <div className="space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={filterPartName}
+              onChange={(e) => setFilterPartName(e.target.value)}
+              placeholder="搜索备件名称"
+              className="flex-1 min-w-[200px] bg-primary-50/5 border border-primary-50/20 rounded-md px-3 py-1.5 text-sm text-primary-50/90 placeholder:text-primary-50/40 focus:border-solar/50 outline-none transition-colors"
+            />
+            <input
+              type="text"
+              value={filterWorkOrder}
+              onChange={(e) => setFilterWorkOrder(e.target.value)}
+              placeholder="关联工单ID（如 WO-2026-0001）"
+              className="flex-1 min-w-[240px] bg-primary-50/5 border border-primary-50/20 rounded-md px-3 py-1.5 text-sm text-primary-50/90 placeholder:text-primary-50/40 focus:border-solar/50 outline-none transition-colors"
+            />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as 'all' | 'in' | 'out')}
+              className="bg-primary-50/5 border border-primary-50/20 rounded-md px-3 py-1.5 text-sm text-primary-50/90 focus:border-solar/50 outline-none transition-colors cursor-pointer"
+            >
+              <option value="all">全部</option>
+              <option value="in">入库</option>
+              <option value="out">出库</option>
+            </select>
+          </div>
+          <DataTable<StockRecord>
+            columns={recordColumns}
+            data={filteredRecords}
+            rowKey="id"
+            emptyText="暂无出入库记录"
+          />
+        </div>
       )}
 
       {stockInModal && (
