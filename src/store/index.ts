@@ -76,12 +76,23 @@ const computeRealtimeWeather = (): WeatherData => {
 };
 
 interface AlarmAction {
-  type: 'power_reduction' | 'backup_switch';
+  type: 'power_reduction' | 'backup_switch' | 'manual_confirm';
   description: string;
   timestamp: string;
 }
 
 interface AppState {
+  _initialized: {
+    devices: boolean;
+    alarms: boolean;
+    schedules: boolean;
+    workorders: boolean;
+    inventory: boolean;
+    stockrecords: boolean;
+    statistics: boolean;
+    trend: boolean;
+  };
+
   user: User | null;
   realtimeWeather: WeatherData | null;
   realtimeGeneration: GenerationData | null;
@@ -117,7 +128,7 @@ interface AppState {
   fetchWorkOrders: () => Promise<void>;
   createWorkOrder: (order: Omit<WorkOrder, 'id' | 'createdAt'>) => Promise<void>;
   assignWorkOrder: (id: string, assignee: string, team?: string) => Promise<void>;
-  completeWorkOrder: (id: string, partsUsed: PartUsage[]) => Promise<void>;
+  completeWorkOrder: (id: string, partsUsed: PartUsage[]) => Promise<boolean>;
 
   fetchInventory: () => Promise<void>;
   fetchStockRecords: () => Promise<void>;
@@ -183,10 +194,13 @@ const buildCleaningTasks = (params: DispatchParams): CleaningTask[] => {
   return tasks;
 };
 
-const buildSchedulesWithParams = (params: DispatchParams): SchedulePlan[] => {
+const buildScheduleById = (
+  s: typeof mockSchedules[number],
+  params: DispatchParams,
+  preserveFrom?: SchedulePlan
+): SchedulePlan => {
   const cleaningTasks = buildCleaningTasks(params);
-
-  return mockSchedules.map((s) => ({
+  const base: SchedulePlan = {
     id: s.id,
     date: s.date,
     status: s.status,
@@ -210,7 +224,37 @@ const buildSchedulesWithParams = (params: DispatchParams): SchedulePlan[] => {
     approvedAt: s.approvedAt,
     comment: s.remark,
     createdAt: s.createdAt,
-  }));
+  };
+
+  if (preserveFrom && preserveFrom.status !== 'pending') {
+    return {
+      ...base,
+      id: preserveFrom.id,
+      status: preserveFrom.status,
+      approver: preserveFrom.approver,
+      approvedAt: preserveFrom.approvedAt,
+      comment: preserveFrom.comment,
+    };
+  }
+
+  if (preserveFrom) {
+    return {
+      ...base,
+      id: preserveFrom.id,
+    };
+  }
+
+  return base;
+};
+
+const buildSchedulesWithParams = (
+  params: DispatchParams,
+  existingSchedules: SchedulePlan[] = []
+): SchedulePlan[] => {
+  return mockSchedules.map((s) => {
+    const existing = existingSchedules.find((es) => es.id === s.id);
+    return buildScheduleById(s, params, existing);
+  });
 };
 
 const initialWorkOrders: WorkOrder[] = mockWorkOrders.map((wo) => ({
@@ -258,7 +302,19 @@ const initialStatistics: StatisticsData[] = mockStatistics.map((s) => ({
   peakPower: s.peakPower,
 }));
 
+const INITIAL_FLAGS = {
+  devices: false,
+  alarms: false,
+  schedules: false,
+  workorders: false,
+  inventory: false,
+  stockrecords: false,
+  statistics: false,
+  trend: false,
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
+  _initialized: { ...INITIAL_FLAGS },
   user: null,
   realtimeWeather: null,
   realtimeGeneration: null,
@@ -290,6 +346,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   logout: () => {
     set({
+      _initialized: { ...INITIAL_FLAGS },
       user: null,
       realtimeWeather: null,
       realtimeGeneration: null,
@@ -318,21 +375,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchTrend: async () => {
     await delay();
-    set({ trendData: [...mockTrendData] });
+    if (get()._initialized.trend) return;
+    set({ trendData: [...mockTrendData], _initialized: { ...get()._initialized, trend: true } });
   },
 
   fetchDevices: async () => {
     await delay();
+    if (get()._initialized.devices) return;
     set({
       inverters: [...mockInverters],
       panels: [...mockPanels],
       batteries: [...mockBatteries],
+      _initialized: { ...get()._initialized, devices: true },
     });
   },
 
   fetchAlarms: async () => {
     await delay();
-    set({ alarmList: [...initialAlarms] });
+    if (get()._initialized.alarms) return;
+    set({ alarmList: [...initialAlarms], _initialized: { ...get()._initialized, alarms: true } });
   },
 
   resolveAlarm: async (id: string) => {
@@ -347,8 +408,8 @@ export const useAppStore = create<AppState>((set, get) => ({
               actions: [
                 ...(a.actions || []),
                 {
-                  type: 'power_reduction' as const,
-                  description: '运维人员已确认处理，报警已关闭',
+                  type: 'manual_confirm' as const,
+                  description: '运维人员已确认处置结果，报警已关闭',
                   timestamp: now,
                 },
               ],
@@ -360,15 +421,26 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchSchedules: async () => {
     await delay();
-    const params = get().dispatchParams;
-    set({ scheduleList: buildSchedulesWithParams(params) });
+    const state = get();
+    const params = state.dispatchParams;
+    if (state._initialized.schedules) {
+      set({
+        scheduleList: buildSchedulesWithParams(params, state.scheduleList),
+      });
+      return;
+    }
+    set({
+      scheduleList: buildSchedulesWithParams(params, []),
+      _initialized: { ...state._initialized, schedules: true },
+    });
   },
 
   updateDispatchParams: async (params: DispatchParams) => {
     await delay();
+    const state = get();
     set({
       dispatchParams: params,
-      scheduleList: buildSchedulesWithParams(params),
+      scheduleList: buildSchedulesWithParams(params, state.scheduleList),
     });
   },
 
@@ -398,7 +470,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchWorkOrders: async () => {
     await delay();
-    set({ workOrderList: [...initialWorkOrders] });
+    if (get()._initialized.workorders) return;
+    set({
+      workOrderList: [...initialWorkOrders],
+      _initialized: { ...get()._initialized, workorders: true },
+    });
   },
 
   createWorkOrder: async (order) => {
@@ -426,10 +502,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  completeWorkOrder: async (id: string, partsUsed: PartUsage[]) => {
+  completeWorkOrder: async (id: string, partsUsed: PartUsage[]): Promise<boolean> => {
     await delay();
     const now = new Date().toISOString();
     const state = get();
+
+    if (partsUsed.length > 0) {
+      for (const pu of partsUsed) {
+        const part = state.spareParts.find((p) => p.id === pu.partId);
+        if (!part || part.stock < pu.quantity) {
+          return false;
+        }
+      }
+    }
 
     let updatedParts = [...state.spareParts];
     const newRecords: StockRecord[] = [];
@@ -440,7 +525,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (partIdx >= 0) {
           updatedParts[partIdx] = {
             ...updatedParts[partIdx],
-            stock: Math.max(0, updatedParts[partIdx].stock - pu.quantity),
+            stock: updatedParts[partIdx].stock - pu.quantity,
             lastUpdated: now,
           };
           newRecords.push({
@@ -466,16 +551,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       spareParts: updatedParts,
       stockRecords: [...newRecords, ...state.stockRecords],
     });
+
+    return true;
   },
 
   fetchInventory: async () => {
     await delay();
-    set({ spareParts: [...initialSpareParts] });
+    if (get()._initialized.inventory) return;
+    set({
+      spareParts: [...initialSpareParts],
+      _initialized: { ...get()._initialized, inventory: true },
+    });
   },
 
   fetchStockRecords: async () => {
     await delay();
-    set({ stockRecords: [...initialStockRecords] });
+    if (get()._initialized.stockrecords) return;
+    set({
+      stockRecords: [...initialStockRecords],
+      _initialized: { ...get()._initialized, stockrecords: true },
+    });
   },
 
   stockIn: async (partId: string, quantity: number, operator: string) => {
@@ -538,6 +633,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchStatistics: async () => {
     await delay();
-    set({ statisticsData: [...initialStatistics] });
+    if (get()._initialized.statistics) return;
+    set({
+      statisticsData: [...initialStatistics],
+      _initialized: { ...get()._initialized, statistics: true },
+    });
   },
 }));

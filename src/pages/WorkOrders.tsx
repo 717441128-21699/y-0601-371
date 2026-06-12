@@ -14,6 +14,7 @@ import {
   FileText,
   Package,
   Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -280,9 +281,11 @@ interface CompleteModalProps {
   order: WorkOrder | null;
   onConfirm: (partsUsed: PartUsage[]) => void;
   spareParts: SparePart[];
+  error?: string;
+  loading?: boolean;
 }
 
-function CompleteModal({ open, onClose, order, onConfirm, spareParts }: CompleteModalProps) {
+function CompleteModal({ open, onClose, order, onConfirm, spareParts, error, loading }: CompleteModalProps) {
   const [selectedPartId, setSelectedPartId] = useState('');
   const [partQuantity, setPartQuantity] = useState(1);
   const [partsUsed, setPartsUsed] = useState<PartUsage[]>([]);
@@ -424,19 +427,28 @@ function CompleteModal({ open, onClose, order, onConfirm, spareParts }: Complete
           )}
         </div>
 
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-alarm/10 border border-alarm/40">
+            <AlertTriangle className="w-4 h-4 text-alarm shrink-0 mt-0.5" />
+            <p className="text-xs text-alarm">{error}</p>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm text-primary-50/70 border border-primary-50/30 hover:bg-primary-50/10 transition-colors"
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm text-primary-50/70 border border-primary-50/30 hover:bg-primary-50/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             取消
           </button>
           <button
             onClick={handleConfirm}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-gradient-energy text-primary-900 hover:shadow-glow-energy transition-all flex items-center justify-center gap-2"
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-gradient-energy text-primary-900 hover:shadow-glow-energy transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="w-4 h-4" />
-            确认完成
+            {loading ? '提交中...' : '确认完成'}
           </button>
         </div>
       </div>
@@ -581,6 +593,8 @@ export default function WorkOrders() {
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [completeError, setCompleteError] = useState('');
+  const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
     fetchWorkOrders();
@@ -623,9 +637,17 @@ export default function WorkOrders() {
 
   const handleComplete = async (partsUsed: PartUsage[]) => {
     if (!selectedOrder) return;
-    await completeWorkOrder(selectedOrder.id, partsUsed);
+    setCompleting(true);
+    setCompleteError('');
+    const ok = await completeWorkOrder(selectedOrder.id, partsUsed);
+    setCompleting(false);
+    if (!ok) {
+      setCompleteError('部分备件库存不足，请调整领用数量或先补充库存后再完成工单');
+      return;
+    }
     setCompleteModalOpen(false);
     setSelectedOrder(null);
+    setCompleteError('');
   };
 
   const handleCreate = async (data: {
@@ -749,10 +771,12 @@ export default function WorkOrders() {
 
       <CompleteModal
         open={completeModalOpen}
-        onClose={() => { setCompleteModalOpen(false); setSelectedOrder(null); }}
+        onClose={() => { setCompleteModalOpen(false); setSelectedOrder(null); setCompleteError(''); }}
         order={selectedOrder}
         onConfirm={handleComplete}
         spareParts={spareParts}
+        error={completeError}
+        loading={completing}
       />
 
       <CreateModal

@@ -542,15 +542,38 @@ export default function Dashboard() {
                             {alarm.actions.map((action, idx) => (
                               <div
                                 key={idx}
-                                className="flex items-start gap-2 p-2 rounded bg-primary-50/5 border border-primary-50/10"
+                                className={cn(
+                                  'flex items-start gap-2 p-2 rounded border',
+                                  action.type === 'manual_confirm'
+                                    ? 'bg-primary-50/5 border-primary-50/10'
+                                    : 'bg-primary-50/5 border-primary-50/10'
+                                )}
                               >
-                                {action.type === 'power_reduction' ? (
+                                {action.type === 'power_reduction' && (
                                   <ZapOff className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
-                                ) : (
+                                )}
+                                {action.type === 'backup_switch' && (
                                   <Shield className="w-3.5 h-3.5 text-energy shrink-0 mt-0.5" />
                                 )}
+                                {action.type === 'manual_confirm' && (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-primary-50/60 shrink-0 mt-0.5" />
+                                )}
                                 <div className="min-w-0">
-                                  <p className="text-xs text-primary-50/70">{action.description}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    {action.type === 'power_reduction' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning">自动降功率</span>
+                                    )}
+                                    {action.type === 'backup_switch' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-energy/20 text-energy">切换备用支路</span>
+                                    )}
+                                    {action.type === 'manual_confirm' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary-50/10 text-primary-50/60">人工确认</span>
+                                    )}
+                                  </div>
+                                  <p className={cn(
+                                    'text-xs mt-1',
+                                    action.type === 'manual_confirm' ? 'text-primary-50/50' : 'text-primary-50/70'
+                                  )}>{action.description}</p>
                                   <p className="text-[10px] text-primary-50/40 font-mono mt-0.5">
                                     {formatTime(action.timestamp)}
                                   </p>
