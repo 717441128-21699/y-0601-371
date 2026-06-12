@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'JetBrains Mono', -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+}
+
+body {
+  background-color: #0A1628;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255, 140, 0, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 200, 83, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(10, 22, 40, 1) 0%, #060E1C 100%);
+  background-attachment: fixed;
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #060E1C;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1A3A5C 0%, #0A1628 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 140, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #FF8C00 0%, #E67E00 100%);
+  box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+}
+
+::-webkit-scrollbar-corner {
+  background: #060E1C;
+}
+
+/* Firefox 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1A3A5C #060E1C;
+}
+
+/* 发光动画 */
+@keyframes glow-solar {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 140, 0, 0.5), 0 0 10px rgba(255, 140, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 140, 0, 0.8), 0 0 40px rgba(255, 140, 0, 0.5);
+  }
+}
+
+@keyframes glow-energy {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(0, 200, 83, 0.5), 0 0 10px rgba(0, 200, 83, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 200, 83, 0.8), 0 0 40px rgba(0, 200, 83, 0.5);
+  }
+}
+
+@keyframes glow-alarm {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 61, 0, 0.5), 0 0 10px rgba(255, 61, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 61, 0, 0.8), 0 0 40px rgba(255, 61, 0, 0.5);
+  }
+}
+
+@keyframes glow-warning {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 214, 0, 0.5), 0 0 10px rgba(255, 214, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 214, 0, 0.8), 0 0 40px rgba(255, 214, 0, 0.5);
+  }
+}
+
+@keyframes glow-success {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(0, 230, 118, 0.5), 0 0 10px rgba(0, 230, 118, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.8), 0 0 40px rgba(0, 230, 118, 0.5);
+  }
+}
+
+/* 脉冲动画 */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* 玻璃拟态效果 */
+.glass {
+  background: rgba(10, 22, 40, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.glass-light {
+  background: rgba(26, 58, 92, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.glass-solar {
+  background: rgba(255, 140, 0, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 140, 0, 0.2);
+  border-radius: 12px;
+}
+
+.glass-energy {
+  background: rgba(0, 200, 83, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 200, 83, 0.2);
+  border-radius: 12px;
+}
+
+.glass-alarm {
+  background: rgba(255, 61, 0, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 61, 0, 0.2);
+  border-radius: 12px;
+}
+
+/* 文字发光效果 */
+.text-glow-solar {
+  text-shadow: 0 0 10px rgba(255, 140, 0, 0.7), 0 0 20px rgba(255, 140, 0, 0.4);
+}
+
+.text-glow-energy {
+  text-shadow: 0 0 10px rgba(0, 200, 83, 0.7), 0 0 20px rgba(0, 200, 83, 0.4);
+}
+
+.text-glow-alarm {
+  text-shadow: 0 0 10px rgba(255, 61, 0, 0.7), 0 0 20px rgba(255, 61, 0, 0.4);
+}
+
+.text-glow-warning {
+  text-shadow: 0 0 10px rgba(255, 214, 0, 0.7), 0 0 20px rgba(255, 214, 0, 0.4);
+}
+
+.text-glow-success {
+  text-shadow: 0 0 10px rgba(0, 230, 118, 0.7), 0 0 20px rgba(0, 230, 118, 0.4);
+}
+
+/* 动画工具类 */
+.animate-glow-solar {
+  animation: glow-solar 2s ease-in-out infinite;
+}
+
+.animate-glow-energy {
+  animation: glow-energy 2s ease-in-out infinite;
+}
+
+.animate-glow-alarm {
+  animation: glow-alarm 2s ease-in-out infinite;
+}
+
+.animate-glow-warning {
+  animation: glow-warning 2s ease-in-out infinite;
+}
+
+.animate-glow-success {
+  animation: glow-success 2s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* 选择文字颜色 */
+::selection {
+  background-color: rgba(255, 140, 0, 0.3);
+  color: #FF8C00;
+}
+
+/* 链接样式 */
+a {
+  color: #FF8C00;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+a:hover {
+  color: #FFB43C;
+  text-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+}
+
+/* 按钮基础样式 */
+button {
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button:focus {
+  outline: none;
+}
+
+/* 输入框样式 */
+input, textarea, select {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 网格背景效果 */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 140, 0, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 分割线 */
+.divider-glow {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 140, 0, 0.5), transparent);
+}
